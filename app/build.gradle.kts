@@ -60,6 +60,8 @@ dependencies {
     implementation("com.google.maps.android:maps-compose:$mapsComposeVersion")
     implementation("com.google.maps.android:maps-compose-utils:$mapsComposeVersion")
     implementation("com.google.maps.android:maps-compose-widgets:$mapsComposeVersion")
+    implementation ("com.google.android.gms:play-services-location:20.0.0")
+    implementation ("com.google.maps.android:maps-compose:2.5.3")
 
     // Jetpack Compose
     implementation("androidx.compose.ui:ui:$composeVersion")

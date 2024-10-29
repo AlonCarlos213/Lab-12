@@ -4,124 +4,107 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
-import com.google.maps.android.compose.GoogleMap
-import com.google.maps.android.compose.Marker
-import com.google.maps.android.compose.Polygon
-import com.google.maps.android.compose.rememberCameraPositionState
-import com.google.maps.android.compose.rememberMarkerState
+import com.google.maps.android.compose.*
 import androidx.compose.material.Button
 import androidx.compose.material.Text
 import androidx.compose.material.DropdownMenu
 import androidx.compose.material.DropdownMenuItem
 
+import android.Manifest
+import android.annotation.SuppressLint
+import android.content.pm.PackageManager
+import android.location.Location
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.FusedLocationProviderClient
+
+
 @Composable
 fun MapScreen() {
-    val arequipaLocation = LatLng(-16.4040102, -71.559611) // Arequipa, Perú
-    val cameraPositionState = rememberCameraPositionState {
-        position = com.google.android.gms.maps.model.CameraPosition.fromLatLngZoom(arequipaLocation, 12f)
-    }
+    val context = LocalContext.current
+    val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
 
-    // Manipulación de la cámara para moverla a Yura
+    // Variables para almacenar la ubicación actual y el tipo de mapa
+    var currentLocation by remember { mutableStateOf(LatLng(-16.4040102, -71.559611)) } // Ubicación predeterminada (Arequipa)
+    val cameraPositionState = rememberCameraPositionState {
+        position = com.google.android.gms.maps.model.CameraPosition.fromLatLngZoom(currentLocation, 12f)
+    }
+    var mapType by remember { mutableStateOf(MapType.NORMAL) }
+
+    // Solicitar permisos de ubicación
+    val locationPermissionRequest = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+        onResult = { isGranted ->
+            if (isGranted) {
+                getCurrentLocation(fusedLocationClient) { location ->
+                    currentLocation = LatLng(location.latitude, location.longitude)
+                    cameraPositionState.position = com.google.android.gms.maps.model.CameraPosition.fromLatLngZoom(currentLocation, 12f)
+                }
+            }
+        }
+    )
+
     LaunchedEffect(Unit) {
-        cameraPositionState.animate(
-            update = CameraUpdateFactory.newLatLngZoom(LatLng(-16.2520984, -71.6836503), 12f), // Mover a Yura
-            durationMs = 3000
-        )
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            locationPermissionRequest.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+        } else {
+            getCurrentLocation(fusedLocationClient) { location ->
+                currentLocation = LatLng(location.latitude, location.longitude)
+                cameraPositionState.position = com.google.android.gms.maps.model.CameraPosition.fromLatLngZoom(currentLocation, 12f)
+            }
+        }
     }
 
     Column {
         // Componente para seleccionar el tipo de mapa
         MapTypeSelector(onMapTypeSelected = { selectedType ->
-            // Este bloque está vacío, ya que mapType no es aplicable aquí directamente
+            mapType = selectedType
         })
 
-        // Mostrar el mapa
+        // Mostrar el mapa con el tipo seleccionado y la ubicación actual
         Box(modifier = Modifier.fillMaxSize()) {
             GoogleMap(
                 modifier = Modifier.fillMaxSize(),
-                cameraPositionState = cameraPositionState
+                cameraPositionState = cameraPositionState,
+                properties = MapProperties(mapType = mapType)
             ) {
-                // Añadir marcador en Arequipa, Perú con ícono personalizado
+                // Añadir marcador en la ubicación actual
                 Marker(
-                    state = rememberMarkerState(position = arequipaLocation),
-                    icon = BitmapDescriptorFactory.fromResource(R.drawable.icon_mountain),
-                    title = "Arequipa, Perú"
-                )
-
-                // Agregar varios puntos de interés
-                val locations = listOf(
-                    LatLng(-16.433415, -71.5442652), // JLByR
-                    LatLng(-16.4205151, -71.4945209), // Paucarpata
-                    LatLng(-16.3524187, -71.5675994)  // Zamacola
-                )
-
-                locations.forEach { location ->
-                    Marker(
-                        state = rememberMarkerState(position = location),
-                        title = "Ubicación",
-                        snippet = "Punto de interés"
-                    )
-                }
-
-                // Coordenadas para los polígonos
-                val mallAventuraPolygon = listOf(
-                    LatLng(-16.432292, -71.509145),
-                    LatLng(-16.432757, -71.509626),
-                    LatLng(-16.433013, -71.509310),
-                    LatLng(-16.432566, -71.508853)
-                )
-
-                val parqueLambramaniPolygon = listOf(
-                    LatLng(-16.422704, -71.530830),
-                    LatLng(-16.422920, -71.531340),
-                    LatLng(-16.423264, -71.531110),
-                    LatLng(-16.423050, -71.530600)
-                )
-
-                val plazaDeArmasPolygon = listOf(
-                    LatLng(-16.398866, -71.536961),
-                    LatLng(-16.398744, -71.536529),
-                    LatLng(-16.399178, -71.536289),
-                    LatLng(-16.399299, -71.536721)
-                )
-
-                // Dibujar polígonos en el mapa
-                Polygon(
-                    points = plazaDeArmasPolygon,
-                    strokeColor = Color.Red,
-                    fillColor = Color.Blue.copy(alpha = 0.3f),
-                    strokeWidth = 5f
-                )
-                Polygon(
-                    points = parqueLambramaniPolygon,
-                    strokeColor = Color.Red,
-                    fillColor = Color.Blue.copy(alpha = 0.3f),
-                    strokeWidth = 5f
-                )
-                Polygon(
-                    points = mallAventuraPolygon,
-                    strokeColor = Color.Red,
-                    fillColor = Color.Blue.copy(alpha = 0.3f),
-                    strokeWidth = 5f
+                    state = rememberMarkerState(position = currentLocation),
+                    icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED),
+                    title = "Ubicación actual"
                 )
             }
         }
     }
 }
 
+// Función para obtener la ubicación actual
+@SuppressLint("MissingPermission")
+private fun getCurrentLocation(
+    fusedLocationClient: FusedLocationProviderClient,
+    onLocationAvailable: (Location) -> Unit
+) {
+    fusedLocationClient.lastLocation
+        .addOnSuccessListener { location: Location? ->
+            location?.let { onLocationAvailable(it) }
+        }
+}
+
 @Composable
-fun MapTypeSelector(onMapTypeSelected: (Int) -> Unit) {
+fun MapTypeSelector(onMapTypeSelected: (MapType) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     val mapTypes = listOf(
-        "Normal" to com.google.android.gms.maps.GoogleMap.MAP_TYPE_NORMAL,
-        "Satellite" to com.google.android.gms.maps.GoogleMap.MAP_TYPE_SATELLITE,
-        "Terrain" to com.google.android.gms.maps.GoogleMap.MAP_TYPE_TERRAIN,
-        "Hybrid" to com.google.android.gms.maps.GoogleMap.MAP_TYPE_HYBRID
+        "Normal" to MapType.NORMAL,
+        "Satellite" to MapType.SATELLITE,
+        "Terrain" to MapType.TERRAIN,
+        "Hybrid" to MapType.HYBRID
     )
 
     Box(
@@ -145,3 +128,4 @@ fun MapTypeSelector(onMapTypeSelected: (Int) -> Unit) {
         }
     }
 }
+
